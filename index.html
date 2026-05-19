@@ -1,204 +1,92 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro de Asistencia</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f0f4f8;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 40px 32px;
-      max-width: 360px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-    }
-    .logo { font-size: 48px; margin-bottom: 16px; }
-    .nombre { font-size: 22px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
-    .subtitulo { font-size: 14px; color: #64748b; margin-bottom: 24px; }
-    .btn-registrar {
-      width: 100%;
-      padding: 18px;
-      background: #1D9E75;
-      color: white;
-      border: none;
-      border-radius: 14px;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .btn-registrar:disabled { background: #94a3b8; cursor: not-allowed; }
-    .estado-geo {
-      display: none;
-      margin-bottom: 16px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 13px;
-      text-align: left;
-    }
-    .estado-geo.buscando { background: #EFF6FF; color: #1D4ED8; }
-    .estado-geo.ok       { background: #E1F5EE; color: #0F6E56; }
-    .estado-geo.lejos    { background: #FCEBEB; color: #A32D2D; }
-    .estado-geo.sin-perm { background: #FFF7ED; color: #854F0B; }
-    .resultado {
-      display: none;
-      margin-top: 24px;
-      padding: 20px;
-      border-radius: 14px;
-      font-size: 15px;
-    }
-    .resultado.entrada { background: #E1F5EE; color: #085041; }
-    .resultado.salida  { background: #EEEDFE; color: #26215C; }
-    .resultado.error   { background: #FCEBEB; color: #501313; }
-    .tipo-label { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
-    .detalle { font-size: 13px; opacity: 0.8; margin-top: 4px; }
-    .cargando { display: none; margin-top: 16px; color: #64748b; font-size: 14px; }
-  </style>
-</head>
-<body>
-<div class="card">
-  <div class="logo">&#127970;</div>
-  <div class="nombre" id="nombreLabel">Cargando...</div>
-  <div class="subtitulo">Sistema de Asistencia</div>
-  <div class="estado-geo" id="estadoGeo"></div>
-  <button class="btn-registrar" id="btnRegistrar" onclick="iniciarRegistro()">REGISTRAR</button>
-  <div class="cargando" id="cargando">Registrando...</div>
-  <div class="resultado" id="resultado">
-    <div class="tipo-label" id="tipoLabel"></div>
-    <div id="horaLabel"></div>
-    <div class="detalle" id="estadoLabel"></div>
-  </div>
-</div>
+// ============================================================
+// SISTEMA DE REGISTRO DE ASISTENCIA - v4 (compatible con CORS)
+// ============================================================
 
-<script>
-  // URL de tu Apps Script (no cambia)
-  var URL_SCRIPT = 'https://script.google.com/macros/s/AKfycby1b3Ev4Q8-YxvRQa8u0Qi_-MI9kU8S0MTlCb3wIG8Fe6vGHfTp93XBHKc1j_P5oUUt/exec';
+var SHEET_ID = 'TU_SHEET_ID_AQUI';
+var HOJA_REGISTROS = 'Registros';
 
-  // Coordenadas de la institución
-  var INST_LAT   = -33.4361944;
-  var INST_LNG   = -70.6488333;
-  var INST_RADIO = 150;
+var HORA_ENTRADA_LIMITE = { hora: 9, minuto: 0 };
+var HORA_SALIDA_LIMITE  = { hora: 18, minuto: 0 };
 
-  // Leer nombre e id desde la URL (?nombre=Ana&id=P001)
-  var params = new URLSearchParams(window.location.search);
-  var NOMBRE = params.get('nombre') || '';
-  var ID     = params.get('id')     || '';
+function doGet(e) {
+  var params = e.parameter;
 
-  if (!NOMBRE || !ID) {
-    document.getElementById('nombreLabel').textContent = 'QR invalido';
-    document.getElementById('btnRegistrar').disabled = true;
+  // Si viene con accion=registrar, procesar el registro
+  if (params.accion === 'registrar') {
+    var nombre    = params.nombre || '';
+    var id        = params.id     || '';
+    var geoEstado = params.geo    || 'sin_validar';
+
+    if (!nombre || !id) {
+      var errResp = ContentService.createTextOutput(JSON.stringify({ exito: false, error: 'Parametros invalidos' }));
+      errResp.setMimeType(ContentService.MimeType.JSON);
+      return errResp;
+    }
+
+    var resultado = registrarAsistencia(nombre, id, geoEstado);
+    var output = ContentService.createTextOutput(JSON.stringify(resultado));
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
+  }
+
+  // Si viene sin accion, mostrar pagina de error
+  return HtmlService.createHtmlOutput(paginaError('Acceso directo no permitido.'));
+}
+
+function registrarAsistencia(nombre, id, geoEstado) {
+  var ss    = SpreadsheetApp.openById(SHEET_ID);
+  var hoja  = ss.getSheetByName(HOJA_REGISTROS);
+  var ahora = new Date();
+
+  var ultimoRegistro = obtenerUltimoRegistro(hoja, id);
+  var tipo = 'Entrada';
+  if (ultimoRegistro && ultimoRegistro.tipo === 'Entrada') {
+    tipo = 'Salida';
+  }
+
+  var estadoHorario = determinarEstado(ahora, tipo);
+
+  var estadoFinal = estadoHorario;
+  if (geoEstado === 'sin_validar') {
+    estadoFinal = estadoHorario === 'Normal' ? 'Sin validar ubicacion' : estadoHorario + ' - Sin ubicacion';
+  }
+
+  var fecha = Utilities.formatDate(ahora, 'America/Santiago', 'dd/MM/yyyy');
+  var hora  = Utilities.formatDate(ahora, 'America/Santiago', 'HH:mm:ss');
+
+  hoja.appendRow([nombre, id, fecha, hora, tipo, estadoFinal]);
+
+  return { exito: true, nombre: nombre, tipo: tipo, hora: hora, fecha: fecha, estado: estadoFinal };
+}
+
+function obtenerUltimoRegistro(hoja, id) {
+  var datos = hoja.getDataRange().getValues();
+  for (var i = datos.length - 1; i >= 1; i--) {
+    if (String(datos[i][1]) === String(id)) {
+      return {
+        nombre: datos[i][0],
+        id:     datos[i][1],
+        fecha:  datos[i][2],
+        hora:   datos[i][3],
+        tipo:   datos[i][4],
+        estado: datos[i][5]
+      };
+    }
+  }
+  return null;
+}
+
+function determinarEstado(ahora, tipo) {
+  var total = ahora.getHours() * 60 + ahora.getMinutes();
+  if (tipo === 'Entrada') {
+    var lim = HORA_ENTRADA_LIMITE.hora * 60 + HORA_ENTRADA_LIMITE.minuto;
+    return total > lim ? 'Atrasado' : 'Normal';
   } else {
-    document.getElementById('nombreLabel').textContent = NOMBRE;
+    var lim2 = HORA_SALIDA_LIMITE.hora * 60 + HORA_SALIDA_LIMITE.minuto;
+    return total < lim2 ? 'Salida anticipada' : 'Normal';
   }
+}
 
-  var watchId = null;
-
-  function iniciarRegistro() {
-    var btn = document.getElementById('btnRegistrar');
-    btn.disabled = true;
-    mostrarGeo('buscando', 'Activando GPS...');
-
-    if (!navigator.geolocation) {
-      enviarRegistro('sin_validar');
-      return;
-    }
-
-    watchId = navigator.geolocation.watchPosition(
-      function(pos) {
-        if (watchId !== null) {
-          navigator.geolocation.clearWatch(watchId);
-          watchId = null;
-          mostrarGeo('buscando', 'Calculando distancia...');
-          validarUbicacion(pos);
-        }
-      },
-      function(err) {
-        if (watchId !== null) {
-          navigator.geolocation.clearWatch(watchId);
-          watchId = null;
-        }
-        mostrarGeo('sin-perm', 'No se pudo acceder al GPS. El registro quedara pendiente de revision.');
-        setTimeout(function() { enviarRegistro('sin_validar'); }, 2000);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
-    );
-  }
-
-  function validarUbicacion(pos) {
-    var dist = calcularDistancia(
-      pos.coords.latitude, pos.coords.longitude,
-      INST_LAT, INST_LNG
-    );
-    if (dist <= INST_RADIO) {
-      mostrarGeo('ok', 'Ubicacion verificada (' + Math.round(dist) + 'm del edificio)');
-      enviarRegistro('verificada');
-    } else {
-      mostrarGeo('lejos', 'Estas fuera del rango permitido (' + Math.round(dist) + 'm). Debes estar dentro del edificio.');
-      document.getElementById('btnRegistrar').disabled = false;
-    }
-  }
-
-  function calcularDistancia(lat1, lng1, lat2, lng2) {
-    var R = 6371000;
-    var dLat = (lat2 - lat1) * Math.PI / 180;
-    var dLng = (lng2 - lng1) * Math.PI / 180;
-    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function enviarRegistro(geoEstado) {
-    document.getElementById('estadoGeo').style.display = 'none';
-    document.getElementById('cargando').style.display = 'block';
-    fetch(URL_SCRIPT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: NOMBRE, id: ID, geoEstado: geoEstado })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) { mostrarResultado(data); })
-    .catch(function() { mostrarError(); });
-  }
-
-  function mostrarGeo(tipo, msg) {
-    var el = document.getElementById('estadoGeo');
-    el.className = 'estado-geo ' + tipo;
-    el.textContent = msg;
-    el.style.display = 'block';
-  }
-
-  function mostrarResultado(data) {
-    document.getElementById('cargando').style.display = 'none';
-    var div = document.getElementById('resultado');
-    div.className = 'resultado ' + (data.tipo === 'Entrada' ? 'entrada' : 'salida');
-    document.getElementById('tipoLabel').textContent = data.tipo === 'Entrada' ? 'Entrada registrada' : 'Salida registrada';
-    document.getElementById('horaLabel').textContent = data.fecha + ' - ' + data.hora;
-    document.getElementById('estadoLabel').textContent = data.estado !== 'Normal' ? data.estado : '';
-    div.style.display = 'block';
-  }
-
-  function mostrarError() {
-    document.getElementById('cargando').style.display = 'none';
-    var div = document.getElementById('resultado');
-    div.className = 'resultado error';
-    document.getElementById('tipoLabel').textContent = 'Error';
-    document.getElementById('horaLabel').textContent = 'No se pudo registrar. Intenta de nuevo.';
-    document.getElementById('estadoLabel').textContent = '';
-    div.style.display = 'block';
-    document.getElementById('btnRegistrar').disabled = false;
-  }
-</script>
-</body>
-</html>
+function paginaError(mensaje) {
+  return '<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px;"><p style="font-size:48px">&#9888;</p><p style="font-size:18px;color:#e53e3e">' + mensaje + '</p></body></html>';
+}
