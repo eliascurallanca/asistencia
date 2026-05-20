@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Sistema de control y registro de asistencia geolocalizado para practicantes del servicio.">
+  <title>Control de Asistencia — Practicantes</title>
+  
+  <!-- Estilos Premium de la Aplicación -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <!-- Fondo decorativo con luces difusas (Efecto Glassmorphic Glow) -->
+  <div class="ambient-glow"></div>
+  
+  <!-- Contenedor Principal (Tarjeta Glassmorphism) -->
+  <div class="card">
+    
+    <!-- Botón para alternar modo claro/oscuro de forma premium -->
+    <button class="theme-toggle" id="themeToggleBtn" onclick="alternarTema()" title="Cambiar tema">
+      🌓
+    </button>
+    
+    <!-- Encabezado del Sistema -->
+    <div class="logo-container">
+      <!-- El doble clic en el ícono activa el Modo Simulación/Test para facilitar pruebas desde casa -->
+      <div class="logo-badge" id="logoBadge" ondblclick="gatillarModoPrueba()" title="Doble clic para modo simulación (Desarrollo)">
+        🏢
+      </div>
+    </div>
+    
+    <div class="nombre-container">
+      <div class="nombre" id="nombreLabel">Cargando datos...</div>
+    </div>
+    <div class="subtitulo" id="saludoDinamico">Validando identidad...</div>
+
+    <!-- =========================================================================
+         PANEL PRINCIPAL DE REGISTRO
+         ========================================================================= -->
+    <div id="panelRegistro">
+      
+      <!-- Radar de Estado GPS Animado -->
+      <div class="radar-wrapper buscando" id="radarWrapper">
+        <div class="radar-pulse"></div>
+        <div class="radar-circle" id="radarIcon">
+          📡
+        </div>
+      </div>
+      <div class="radar-status-text buscando" id="radarStatusText">
+        Obteniendo ubicación del dispositivo...
+      </div>
+
+      <!-- Selector de Tipo de Registro -->
+      <div class="label-tipo">Selecciona tu marca</div>
+      <div class="btns-tipo">
+        <button class="btn-tipo entrada" id="btnEntrada" onclick="seleccionarTipo('Entrada')">
+          <span class="emoji">🌅</span>
+          <span>Entrada</span>
+        </button>
+        <button class="btn-tipo salida" id="btnSalida" onclick="seleccionarTipo('Salida')">
+          <span class="emoji">🏃</span>
+          <span>Salida</span>
+        </button>
+      </div>
+
+      <!-- Botón de Registro Principal -->
+      <button class="btn-registrar" id="btnRegistrar" onclick="iniciarRegistro()" disabled>
+        SELECCIONA TIPO DE MARCA
+      </button>
+
+      <!-- Botón de Corrección de Asistencia -->
+      <button class="btn-correccion" onclick="mostrarCorreccion()">
+        Solicitar corrección de asistencia
+      </button>
+    </div>
+
+    <!-- =========================================================================
+         PANEL DE SOLICITUD DE CORRECCIÓN
+         ========================================================================= -->
+    <div id="panelCorreccion">
+      <div class="correccion-header">
+        <div class="correccion-titulo">Solicitud de Corrección</div>
+        <div class="correccion-sub">Completa los datos. Tu supervisor revisará y aprobará el ticket a la brevedad.</div>
+      </div>
+
+      <!-- Formulario de Entrada -->
+      <div class="form-group">
+        <label class="form-label" for="tipoCorreccion">Motivo del Ticket</label>
+        <select class="correccion-select" id="tipoCorreccion">
+          <option value="">Seleccione una opción...</option>
+          <option value="Olvide marcar entrada">Olvidé marcar mi entrada</option>
+          <option value="Olvide marcar salida">Olvidé marcar mi salida</option>
+          <option value="Error en el registro">Error / Confusión en registro anterior</option>
+          <option value="Problema tecnico">Problema de conexión / Falla del GPS</option>
+          <option value="Otro">Otro motivo (Explicar en detalle)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="detalleCorreccion">Detalle y Justificación</label>
+        <textarea class="correccion-texto" id="detalleCorreccion" placeholder="Describe brevemente lo ocurrido (ej: 'El GPS tardó en cargar y ya había ingresado al subsuelo', 'Olvidé registrar mi salida al finalizar mi turno')..."></textarea>
+      </div>
+
+      <!-- Botón Enviar Ticket -->
+      <button class="btn-enviar-correccion" id="btnEnviarCorreccion" onclick="enviarCorreccion()">
+        Enviar solicitud
+      </button>
+      
+      <!-- Botón Volver -->
+      <button class="btn-volver" onclick="volverRegistro()">
+        Volver
+      </button>
+    </div>
+
+    <!-- =========================================================================
+         PANTALLAS DE RESULTADO COMPARTIDAS
+         ========================================================================= -->
+    <div class="resultado-pantalla" id="panelResultado">
+      <div class="resultado-badge" id="resBadge">✅</div>
+      <div class="resultado-titulo" id="resTitulo">Marca Exitosa</div>
+      <div class="resultado-tiempo" id="resTiempo">--/--/---- --:--:--</div>
+      
+      <!-- Badge de Estado de Asistencia -->
+      <div class="resultado-status-pill status-normal" id="resStatus">Normal</div>
+      
+      <!-- Botón Volver al Dashboard -->
+      <button class="btn-resultado-accion" id="resBotonAccion" onclick="volverRegistro()">
+        Entendido
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Controlador Lógico de la Aplicación -->
+  <script src="app.js"></script>
+</body>
+</html>
